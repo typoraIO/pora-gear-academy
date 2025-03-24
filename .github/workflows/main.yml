@@ -26,11 +26,14 @@ jobs:
       - name: Rust-src
         run: rustup component add rust-src --toolchain stable
 
-      - name: Check and test
+      - name: Check and test1
         run: |
           cd wordle
           cargo fmt --all --check
           cargo clippy --all-targets -- -D warnings -A unused-imports
+          
+      - name: Check and test2
+        run: |
           cd session
           cargo fmt --all --check
           cargo clippy --all-targets -- -D warnings -A unused-imports
