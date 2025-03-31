@@ -74,7 +74,7 @@ extern "C" fn handle() {
                 msg::send_delayed(exec::program_id(), Action::CheckGameStatus, 0, 200)
                     .expect("Error in sending a CheckSelf Delayed message");
 
-                exec::wait_for(3);
+                exec::wait();
             } else if session.session_status == SessionStatus::GameStarted {
                 session.session_status = SessionStatus::Waiting;
                 exec::leave();
@@ -98,7 +98,7 @@ extern "C" fn handle() {
                     games.insert(user_id, session.clone());
                 }
 
-                exec::wait_for(3);
+                exec::wait();
             }
         }
 
@@ -136,7 +136,7 @@ extern "C" fn handle() {
                     .expect("Error in sending a CheckWord message");
                 }
                 session.session_status = SessionStatus::MessageSent;
-                exec::wait_for(20);
+                exec::wait();
             }
 
             if session_status == SessionStatus::GameOver(Outcome::Win)
@@ -151,15 +151,22 @@ extern "C" fn handle() {
             let session = games.get_mut(&user_id).expect("Unable to decode Init");
             if session.session_status == SessionStatus::None && msg::source() == exec::program_id()
             {
-                msg::send(user_id, SessionStatus::NoReplyReceived, 0)
-                    .expect("Error in sending a message");
-                session.session_status = SessionStatus::GameStarted;
-
-                exec::wait_for(20);
-            } else {
-                let _ = msg::reply(session.session_status.clone(), 0);
+                // If game hasn't started, send timeout message and end game
+                msg::send(user_id, SessionStatus::GameOver(Outcome::Lose), 0)
+                    .expect("Error in sending timeout message");
+                session.session_status = SessionStatus::GameOver(Outcome::Lose);
+            } else if session.session_status == SessionStatus::GameStarted {
+                // If game has started but not finished, check for timeout
+                if session.tries_number > 3 {
+                    msg::send(user_id, SessionStatus::GameOver(Outcome::Lose), 0)
+                        .expect("Error in sending timeout message");
+                    session.session_status = SessionStatus::GameOver(Outcome::Lose);
+                } else {
+                    // If not timeout, continue waiting
+                    msg::send_delayed(exec::program_id(), Action::CheckGameStatus, 0, 200)
+                        .expect("Error in sending delayed check message");
+                }
             }
-
             exec::leave();
         }
     }
@@ -177,12 +184,8 @@ extern "C" fn handle_reply() {
 
             if is_exist_game(&user) && reply_to == session.msg_ids.0 {
                 session.session_status = SessionStatus::GameStarted;
-
-                msg::send(user, SessionStatus::GameStarted, 0)
-                    .expect("Error in sending a HANDLE_REPLY message");
+                exec::wake(session.msg_ids.1).expect("Failed to wake message");
             }
-
-            exec::wake(session.msg_ids.1).expect("Failed to wake message");
         }
 
         WordleEvent::WordChecked {
@@ -190,20 +193,7 @@ extern "C" fn handle_reply() {
             ref correct_positions,
             ref contained_in_word,
         } => {
-            let correct_positions_c = correct_positions.clone();
-            let contained_in_word_c = contained_in_word.clone();
             let session = games.get_mut(&user).expect("Failed to get session");
-
-            msg::send(
-                user,
-                SessionStatus::WordChecked {
-                    user,
-                    correct_positions: correct_positions_c,
-                    contained_in_word: contained_in_word_c,
-                },
-                0,
-            )
-            .expect("Error in sending a HANDLE_REPLY message");
             session.tries_number += 1;
 
             if correct_positions.len() == 5 && contained_in_word.is_empty() {
@@ -214,7 +204,6 @@ extern "C" fn handle_reply() {
                 session.session_status = SessionStatus::Waiting;
             }
 
-            // WAKE for wait_for
             exec::wake(session.msg_ids.1).expect("Failed to wake message");
         }
     }
