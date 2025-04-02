@@ -28,61 +28,45 @@ fn success_test() {
     let res = proxy_program.send(USER, target_program_address);
     system.run_next_block();
     // Send with the message we want to receive back
-    let result = proxy_program.send(USER, Action::StartGame);
+    let result = proxy_program.send(USER, SessionAction::StartGame);
     system.run_next_block();
     println!("result:: {:?}", result);
     let log = Log::builder()
         .source(1)
         .dest(3)
-        .payload(SessionStatus::GameStarted);
+        .payload(SessionStatus::Waiting);
     println!("log:: {:?}", log);
 
     // User attempts to send another message to a proxy program while it is still processing the first message. It is expected that the proxy program will reply with the event `MessageAlreadySent`.
-    let result = proxy_program.send(USER, Action::CheckWord("hhhhh".to_owned()));
+    let result = proxy_program.send(USER, SessionAction::CheckWord("hhhhh".to_owned()));
     system.run_next_block();
     let log = Log::builder()
         .source(1)
         .dest(3)
-        .payload(SessionStatus::WordChecked {
-            user: USER.into(),
-            correct_positions: vec![0],
-            contained_in_word: vec![1, 2, 3, 4],
-        });
+        .payload(SessionStatus::MessageSent);
     println!("log:: {:?}", log);
-    proxy_program.send(USER, Action::CheckWord("hqqqq".to_owned()));
+    proxy_program.send(USER, SessionAction::CheckWord("hqqqq".to_owned()));
     system.run_next_block();
     let log = Log::builder()
         .source(1)
         .dest(3)
-        .payload(SessionStatus::WordChecked {
-            user: USER.into(),
-            correct_positions: vec![0],
-            contained_in_word: vec![],
-        });
+        .payload(SessionStatus::MessageSent);
     println!("log:: {:?}", log);
-    let result = proxy_program.send(USER, Action::CheckWord("qqqqq".to_owned()));
+    let result = proxy_program.send(USER, SessionAction::CheckWord("qqqqq".to_owned()));
     system.run_next_block();
     let log = Log::builder()
         .source(1)
         .dest(3)
-        .payload(SessionStatus::WordChecked {
-            user: USER.into(),
-            correct_positions: vec![],
-            contained_in_word: vec![],
-        });
+        .payload(SessionStatus::MessageSent);
     println!("log:: {:?}", log);
-    let result = proxy_program.send(USER, Action::CheckWord("wwwww".to_owned()));
+    let result = proxy_program.send(USER, SessionAction::CheckWord("wwwww".to_owned()));
     system.run_next_block();
     let log = Log::builder()
         .source(1)
         .dest(3)
-        .payload(SessionStatus::WordChecked {
-            user: USER.into(),
-            correct_positions: vec![],
-            contained_in_word: vec![],
-        });
+        .payload(SessionStatus::MessageSent);
     println!("log:: {:?}", log);
-    let result = proxy_program.send(USER, Action::CheckGameStatus);
+    let result = proxy_program.send(USER, SessionAction::CheckGameStatus);
     system.run_next_block();
     let log = Log::builder()
         .source(1)
@@ -90,28 +74,28 @@ fn success_test() {
         .payload(SessionStatus::GameOver(Outcome::Lose));
     println!("log:: {:?}", log);
     // Restart this game, Only this game is GameOver.
-    let result = proxy_program.send(USER, Action::StartGame);
-    system.run_next_block();
-    let log = Log::builder()
-        .source(1)
-        .dest(3)
-        .payload(SessionStatus::GameStarted);
-    println!("log:: {:?}", log);
-    let result = proxy_program.send(USER, Action::CheckGameStatus);
+    let result = proxy_program.send(USER, SessionAction::StartGame);
     system.run_next_block();
     let log = Log::builder()
         .source(1)
         .dest(3)
         .payload(SessionStatus::Waiting);
     println!("log:: {:?}", log);
-    let result = proxy_program.send(USER, Action::CheckWord("house".to_owned()));
+    let result = proxy_program.send(USER, SessionAction::CheckGameStatus);
     system.run_next_block();
-    let result = proxy_program.send(USER, Action::CheckWord("human".to_owned()));
+    let log = Log::builder()
+        .source(1)
+        .dest(3)
+        .payload(SessionStatus::Waiting);
+    println!("log:: {:?}", log);
+    let result = proxy_program.send(USER, SessionAction::CheckWord("house".to_owned()));
     system.run_next_block();
-    let result = proxy_program.send(USER, Action::CheckWord("horse".to_owned()));
+    let result = proxy_program.send(USER, SessionAction::CheckWord("human".to_owned()));
+    system.run_next_block();
+    let result = proxy_program.send(USER, SessionAction::CheckWord("horse".to_owned()));
     system.run_next_block();
     // Under probability conditions, the final game state is WIN.
-    let result = proxy_program.send(USER, Action::CheckGameStatus);
+    let result = proxy_program.send(USER, SessionAction::CheckGameStatus);
     system.run_next_block();
     let log = Log::builder()
         .source(1)
@@ -123,6 +107,6 @@ fn success_test() {
     let log = Log::builder()
         .source(1)
         .dest(3)
-        .payload(SessionStatus::NoReplyReceived);
+        .payload(SessionStatus::MessageSent);
     println!("log:: {:?}", log);
 }
